@@ -5,7 +5,7 @@ const call = $input.first().json;
 const store = $getWorkflowStaticData('global');
 store.callers = store.callers ?? {};
 
-const now = Date.now();
+const now = new Date(call.receivedAt).getTime();
 const windowMs = Number(cfg.dedupeHours) * 3600 * 1000;
 for (const [num, rec] of Object.entries(store.callers)) {
   if (now - rec.firstCallAt >= windowMs) delete store.callers[num];

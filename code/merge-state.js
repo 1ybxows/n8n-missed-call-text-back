@@ -6,7 +6,7 @@ const store = $getWorkflowStaticData('global');
 store.customers = store.customers ?? {};
 store.seq = store.seq ?? 0;
 
-const now = Date.now();
+const now = new Date(msg.receivedAt).getTime();
 const windowMs = Number(cfg.dedupeHours) * 3600 * 1000;
 for (const [num, rec] of Object.entries(store.customers)) {
   if (now - rec.firstAt >= windowMs) delete store.customers[num];
@@ -36,7 +36,7 @@ const isUpdate = route === 'card' && Boolean(prev?.jobId);
 let jobId = prev?.jobId ?? null;
 if (route === 'card' && !jobId) {
   store.seq += 1;
-  const day = new Intl.DateTimeFormat('en-CA', { timeZone: cfg.businessTimezone }).format(new Date()).replace(/-/g, '');
+  const day = new Intl.DateTimeFormat('en-CA', { timeZone: cfg.businessTimezone }).format(new Date(msg.receivedAt)).replace(/-/g, '');
   jobId = `J-${day}-${String(store.seq).padStart(3, '0')}`;
 }
 

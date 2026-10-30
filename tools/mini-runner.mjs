@@ -105,7 +105,7 @@ async function execNode(node, items, run) {
       const json = node.parameters.includeOtherFields ? { ...item.json } : {};
       for (const a of node.parameters.assignments.assignments) {
         const o = node.name === 'Config' ? overrides[a.name] : undefined;
-        json[a.name] = o !== undefined ? (a.type === 'number' ? Number(o) : o) : resolve(a.value, ctx);
+        json[a.name] = o !== undefined ? (a.type === 'number' ? Number(o) : a.type === 'boolean' ? o === 'true' : o) : resolve(a.value, ctx);
       }
       return { json };
     })];

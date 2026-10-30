@@ -2,6 +2,9 @@
 // because an n8n Code node cannot import local files.
 const cfg = $('Config').first().json;
 
+// Test clock: honoured only when Config.allowTestClock is true (tests and demos). Production ignores the TestNow field.
+const clock = () => (cfg.allowTestClock === true && cfg.testNow ? new Date(cfg.testNow) : new Date());
+
 // US numbers only. Returns +1XXXXXXXXXX or null. Area code and exchange must start with 2-9.
 function toE164(raw) {
   let d = String(raw ?? '').replace(/\D/g, '');

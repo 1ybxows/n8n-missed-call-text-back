@@ -27,6 +27,8 @@ const CONFIG_VALUES = [
   ['dedupeHours', 24, 'number'],
   ['winterMonths', '11,12,1,2,3', 'string'],
   ['smsMode', 'mock', 'string'],
+  ['allowTestClock', false, 'boolean'],
+  ['testNow', "={{ $json.body && $json.body.TestNow ? $json.body.TestNow : '' }}", 'string'],
   ['mockBaseUrl', 'http://127.0.0.1:8099', 'string'],
   ['slackWebhookUrl', 'http://127.0.0.1:8099/slack', 'string'],
 ];
@@ -36,7 +38,7 @@ const config = (pos, keys) => node('Config', 'set', 3.4, pos, {
   mode: 'manual', includeOtherFields: true,
   assignments: { assignments: CONFIG_VALUES.filter(([k]) => !keys || keys.includes(k)).map(([name, value, type]) => ({ id: uid(`cfg:${name}`), name, value, type })) },
   options: {},
-}, { notes: 'Per-client settings. smsMode: mock or twilio. Slack and mock URLs are set here too.', notesInFlow: true });
+}, { notes: 'Per-client settings. smsMode: mock or twilio. Slack and mock URLs are set here too. allowTestClock is for tests only: leave it false.', notesInFlow: true });
 
 const webhook = (name, p, pos) => node(name, 'webhook', 2, pos, { httpMethod: 'POST', path: p, responseMode: 'responseNode', options: {} }, { webhookId: uid(`webhook:${p}`) });
 const respondOk = (pos) => node('Respond OK', 'respondToWebhook', 1.1, pos, {

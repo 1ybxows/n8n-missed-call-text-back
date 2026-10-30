@@ -3,7 +3,7 @@
 What it stands in for, and what it writes under tests/out/<scenario>/:
   POST /sms         the SMS sender          -> sms-log.jsonl   (a real Twilio call in production)
   POST /slack       a Slack incoming webhook -> slack-log.jsonl (the client's Slack URL in production)
-  POST /slack-down  a Slack that is down     -> always HTTP 500
+  (Slack down: the tests set STATE.slack_down, then /slack answers HTTP 500)
   POST /sheet       the jobs sheet           -> jobs.csv        (a Google Sheet in production)
   POST /log         event and alert log lines -> events.log, alerts.log
 
@@ -32,6 +32,7 @@ class State:
         with self.lock:
             self.outdir = Path(outdir) if outdir else None
             self.sms, self.sms_attempts, self.slack, self.slack_down_hits = [], {}, [], 0
+            self.slack_down = False
             self.rows, self.events, self.alerts = [], [], []
             if self.outdir:
                 self.outdir.mkdir(parents=True, exist_ok=True)
@@ -77,12 +78,12 @@ class Handler(BaseHTTPRequestHandler):
                 s.append("sms-log.jsonl", json.dumps(body) + "\n")
                 return self._reply(201, {"sid": body["sid"], "status": "queued"})
             if self.path == "/slack":
+                if s.slack_down:
+                    s.slack_down_hits += 1
+                    return self._reply(500, {"error": "slack is down"})
                 s.slack.append(body)
                 s.append("slack-log.jsonl", json.dumps(body) + "\n")
                 return self._reply(200, {"ok": True})
-            if self.path == "/slack-down":
-                s.slack_down_hits += 1
-                return self._reply(500, {"error": "slack is down"})
             if self.path == "/sheet":
                 row = {c: body["row"].get(c, "") for c in CSV_COLUMNS}
                 s.rows.append(row)

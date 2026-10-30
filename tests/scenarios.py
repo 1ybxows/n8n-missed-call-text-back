@@ -235,7 +235,7 @@ def s18(w):
 
 @scenario("Slack is down", "the job still reaches the sheet; the alert is written to the log even though Slack cannot take it")
 def s19(w):
-    w.set_config(slackWebhookUrl="/slack-down")
+    w.slack_down()
     w.call(C(119), WINTER)
     r = w.reply(C(119), "12 Birch Drive, Dallas TX 75201, outlet sparks when I plug anything in", later(WINTER, 0.1))
     w.check("run failed at the Slack step", not r["ok"] and r["error"]["node"] == "Post to Slack")

@@ -1,7 +1,7 @@
 //@include shared.js
 // Reads the customer's text with plain rules (no AI): address, ZIP, problem type, urgency, language.
 const hook = $('Customer Reply Webhook').first().json.body ?? {};
-const now = new Date();
+const now = clock();
 const from = toE164(hook.From);
 const to = toE164(hook.To);
 const text = String(hook.Body ?? '').replace(/\s+/g, ' ').trim();

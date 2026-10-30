@@ -43,7 +43,7 @@
         220,
         200
       ],
-      "notes": "Per-client settings. smsMode: mock or twilio. Slack and mock URLs are set here too.",
+      "notes": "Per-client settings. smsMode: mock or twilio. Slack and mock URLs are set here too. allowTestClock is for tests only: leave it false.",
       "notesInFlow": true
     },
     {

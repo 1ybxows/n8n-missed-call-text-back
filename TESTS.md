@@ -1,4 +1,4 @@
-# Test results
+# Test results (offline)
 
 **20 of 20 scenarios passed (78 of 78 checks).**
 
@@ -8,10 +8,10 @@ Everything here ran on made-up calls and messages (fictional 555-01xx numbers, i
 
 - A small mock server (`tests/mock_server.py`) stands in for Twilio, Slack and the jobs sheet.
 - `tools/mini-runner.mjs` is a small engine that executes the three real workflow files in `workflows/` (Code nodes, IF conditions, expressions, retries, the error workflow) against that mock server. **It is not n8n.**
-- n8n at 127.0.0.1:5678 was **not running** on the build machine, so these workflows were **not run inside n8n**. The node types and versions in the files were checked against n8n 2.44.7 (see README, "Checked against n8n").
+- The same scenarios were also run in a real n8n: see [TESTS-LIVE.md](TESTS-LIVE.md).
 - Each scenario sets a pretend clock, so "24 hours later" costs nothing.
 
-Run: 2026-10-29 23:57 UTC | Python 3.14.5 | Node v25.9.0
+Run: 2026-10-30 00:23 UTC | Python 3.14.5 | Node v25.9.0
 
 ## Results
 

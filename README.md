@@ -1,7 +1,7 @@
 # Missed call → instant text → job card (n8n demo for home-service companies)
 
 **Tested on made-up calls and messages; not yet run on a live phone number.**
-It has not been run inside a live n8n either (see [How it was tested](#how-it-was-tested)). No paid AI is used: plain rules only.
+It has run in a real local n8n 2.44.7 on made-up data: 20 of 20 scenarios passed (see [How it was tested](#how-it-was-tested)). No paid AI is used: plain rules only.
 
 "Summit Home Services" is an invented HVAC / plumbing / electrical / garage-door company. This demo shows how I would stop it losing jobs to missed calls.
 
@@ -24,7 +24,7 @@ It has not been run inside a live n8n either (see [How it was tested](#how-it-wa
 | `tools/build.mjs` | Builds the three workflow files from `code/` |
 | `tools/mini-runner.mjs` | Small offline engine that runs the workflow files without n8n |
 | `tools/validate-nodes.mjs` | Checks the workflow files against an installed n8n's node definitions |
-| `tests/` | Mock server, 20 scenarios, the runner. Results: [TESTS.md](TESTS.md) |
+| `tests/` | Mock server, 20 scenarios, the runner, `live-n8n.sh` (starts a throwaway local n8n). Results: [TESTS.md](TESTS.md) (offline), [TESTS-LIVE.md](TESTS-LIVE.md) (real n8n) |
 
 ## Mock by default, real by switch
 Nothing here talks to a real account.
@@ -40,6 +40,7 @@ Nothing here talks to a real account.
 | `dedupeHours` | 24 | Repeat-caller / repeat-customer window |
 | `winterMonths` | 11,12,1,2,3 | "No heat" is urgent in these months |
 | `smsMode` | mock | `mock` or `twilio` |
+| `allowTestClock` | false | Tests only: when true, a `TestNow` field in the webhook body is used as the current time. Leave it false in production |
 | `mockBaseUrl`, `slackWebhookUrl` | http://127.0.0.1:8099 ... | Where the mock services listen |
 
 ## The rules (plain, no AI)
@@ -49,8 +50,10 @@ Nothing here talks to a real account.
 
 ## How it was tested
 - 20 made-up scenarios, 78 checks, all passing: normal missed call, no reply, repeat calls, after hours, invalid phone, answered call, gas smell, missing address, Spanish, sender failure, Slack failure and more. Table and every check: [TESTS.md](TESTS.md). Run it yourself: `python3 tests/run_tests.py` (Python 3.9+ and Node 20+, nothing to install).
-- **Not run in n8n.** n8n was not running on the build machine, so the tests use `tools/mini-runner.mjs`, a small engine that executes these same workflow files (Code nodes, IF conditions, expressions, retries, error workflow) against a mock server. It is not n8n and may differ from it in details.
-- **Checked against n8n 2.44.7:** `node tools/validate-nodes.mjs <n8n folder>` confirmed that every node type, version and parameter name in the files exists in that n8n (static check, n8n not started). The first real import may still need small fixes.
+- **Run in a real n8n:** the same 20 scenarios were sent to the production webhooks of a local n8n 2.44.7 (127.0.0.1 only, its own empty data folder, no credentials, mock sender, Slack and sheet): **20 of 20 passed, 78 of 78 checks**. Table and every check: [TESTS-LIVE.md](TESTS-LIVE.md). Repeat it: `bash tests/live-n8n.sh up`, then `python3 tests/run_tests.py --live --n8n-db tests/out/n8n-live/.n8n/database.sqlite`, then `bash tests/live-n8n.sh down` (the script starts a throwaway n8n and never touches another n8n's data). The imported copies differ from `workflows/*.json` in one value only: `Config.allowTestClock` is `true`, so a scenario can send a pretend clock.
+- **What the real n8n showed that the offline engine could not:** n8n 2.x only calls an error workflow that is **published**. Left unpublished, it logs "Workflow ... is not active and cannot be executed" and no alert is sent. Publish `3-error-alert.json` like the other two (see Import below).
+- **Offline engine:** `python3 tests/run_tests.py` runs the same scenarios without n8n through `tools/mini-runner.mjs`, a small engine that executes the workflow files against the mock server (20 of 20 too, [TESTS.md](TESTS.md)). It is not n8n.
+- **Checked against n8n 2.44.7:** `node tools/validate-nodes.mjs <n8n folder>` confirmed that every node type, version and parameter name in the files exists in that n8n (static check).
 - Everything used fictional 555-01xx numbers and invented addresses.
 
 ## What a real client needs (all in the client's own name)
@@ -63,7 +66,7 @@ Running costs are paid by the client directly to Twilio and n8n (a few dollars a
 
 **Hooking up Twilio (to be confirmed on the first live number):** the number's voice flow forwards the call to the office with `<Dial action="https://<n8n>/webhook/hsd/missed-call">`; Twilio then posts `DialCallStatus` (read first) or `CallStatus` (`no-answer`, `busy`, `canceled` count as missed). The text-message webhook points at `/webhook/hsd/customer-reply`. The optional `BusinessHours` field is not sent by Twilio; without it the Config hours are used.
 
-**Import:** import file 3 first, then 1 and 2. If n8n changed the ids, open Settings of workflows 1 and 2 and pick "HSD 3 - Error alert" as the error workflow. Activate all three.
+**Import:** import file 3 first, then 1 and 2. If n8n changed the ids, open Settings of workflows 1 and 2 and pick "HSD 3 - Error alert" as the error workflow. **Publish all three, the error workflow too** (n8n 2.x does not call an unpublished error workflow; the real-n8n test found this).
 
 ## Known limits (honest list)
 - The 24-hour memory uses n8n's built-in workflow memory. It only persists while the workflow is **active** (not in editor test runs), is lost if the workflow is re-imported, and does not suit several n8n instances. Two near-simultaneous texts from one number can both get through. For real traffic keep the memory in a database or a sheet.

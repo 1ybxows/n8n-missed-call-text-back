@@ -1,7 +1,7 @@
 //@include shared.js
 // Checks the missed-call event. Output route: ok | ignore (call was answered) | invalid (bad data -> alert).
 const body = $('Missed Call Webhook').first().json.body ?? {};
-const now = new Date();
+const now = clock();
 // Twilio's <Dial action> reports the outcome as DialCallStatus; a plain status callback sends CallStatus.
 const status = String(body.DialCallStatus ?? body.CallStatus ?? '').toLowerCase();
 const base = { callSid: body.CallSid ?? null, receivedAt: now.toISOString() };
