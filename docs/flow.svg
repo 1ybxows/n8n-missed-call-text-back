@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1210" height="610" viewBox="0 0 1210 610" font-family="-apple-system, Helvetica, Arial, sans-serif">
+<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#57606a"/></marker></defs>
+<rect width="1210" height="610" fill="#ffffff"/>
+<text x="30" y="30" font-size="15" font-weight="600" fill="#1f2328">1. Missed call - instant text</text>
+<rect x="30" y="46" width="150" height="54" rx="9" fill="#e3f4e8" stroke="#2e7d4f" stroke-width="1.6"/>
+<text x="105" y="77" text-anchor="middle" font-size="12" fill="#1f2328"><tspan x="105" dy="-7">Phone system</tspan><tspan x="105" dy="14">missed-call webhook</tspan></text>
+<rect x="230" y="46" width="150" height="54" rx="9" fill="#e8eefb" stroke="#3b5bdb" stroke-width="1.6"/>
+<text x="305" y="77" text-anchor="middle" font-size="12" fill="#1f2328"><tspan x="305" dy="-14">Check the call</tspan><tspan x="305" dy="14">missed? real number?</tspan><tspan x="305" dy="14">open or closed?</tspan></text>
+<rect x="430" y="46" width="150" height="54" rx="9" fill="#fff4dc" stroke="#b7791f" stroke-width="1.6"/>
+<text x="505" y="77" text-anchor="middle" font-size="12" fill="#1f2328"><tspan x="505" dy="-7">Texted this caller</tspan><tspan x="505" dy="14">in the last 24 h?</tspan></text>
+<rect x="630" y="46" width="150" height="54" rx="9" fill="#f1e8fb" stroke="#7c3aed" stroke-width="1.6"/>
+<text x="705" y="77" text-anchor="middle" font-size="12" fill="#1f2328"><tspan x="705" dy="-7">Instant text back</tspan><tspan x="705" dy="14">mock log / Twilio</tspan></text>
+<rect x="830" y="46" width="150" height="54" rx="9" fill="#e8eefb" stroke="#3b5bdb" stroke-width="1.6"/>
+<text x="905" y="77" text-anchor="middle" font-size="12" fill="#1f2328"><tspan x="905" dy="-7">Mark caller</tspan><tspan x="905" dy="14">as texted</tspan></text>
+<rect x="430" y="136" width="150" height="54" rx="9" fill="#e8eefb" stroke="#3b5bdb" stroke-width="1.6"/>
+<text x="505" y="167" text-anchor="middle" font-size="12" fill="#1f2328"><tspan x="505" dy="-7">Log it, send no</tspan><tspan x="505" dy="14">second text</tspan></text>
+<rect x="230" y="136" width="150" height="54" rx="9" fill="#fde8e8" stroke="#c53030" stroke-width="1.6"/>
+<text x="305" y="167" text-anchor="middle" font-size="12" fill="#1f2328"><tspan x="305" dy="-7">Bad data:</tspan><tspan x="305" dy="14">alert, no text</tspan></text>
+<rect x="30" y="136" width="150" height="54" rx="9" fill="#f1f1f1" stroke="#8a8a8a" stroke-width="1.6"/>
+<text x="105" y="167" text-anchor="middle" font-size="12" fill="#1f2328"><tspan x="105" dy="-7">Call was answered:</tspan><tspan x="105" dy="14">ignore, log it</tspan></text>
+<path d="M180 73 L230 73" stroke="#57606a" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+<path d="M380 73 L430 73" stroke="#57606a" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+<text x="405" y="67" text-anchor="middle" font-size="11" fill="#57606a">ok</text>
+<path d="M580 73 L630 73" stroke="#57606a" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+<text x="605" y="67" text-anchor="middle" font-size="11" fill="#57606a">no</text>
+<path d="M780 73 L830 73" stroke="#57606a" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+<path d="M505 100 L505 136" stroke="#57606a" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+<text x="513" y="122" text-anchor="start" font-size="11" fill="#57606a">yes</text>
+<path d="M305 100 L305 136" stroke="#57606a" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+<text x="313" y="122" text-anchor="start" font-size="11" fill="#57606a">bad</text>
+<path d="M305 100 L105 136" stroke="#57606a" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+<text x="151" y="122" text-anchor="start" font-size="11" fill="#57606a">answered</text>
+<text x="30" y="262" font-size="15" font-weight="600" fill="#1f2328">2. Customer reply - job card</text>
+<rect x="30" y="278" width="150" height="54" rx="9" fill="#e3f4e8" stroke="#2e7d4f" stroke-width="1.6"/>
+<text x="105" y="309" text-anchor="middle" font-size="12" fill="#1f2328"><tspan x="105" dy="-7">Customer's text</tspan><tspan x="105" dy="14">reply webhook</tspan></text>
+<rect x="230" y="278" width="150" height="54" rx="9" fill="#e8eefb" stroke="#3b5bdb" stroke-width="1.6"/>
+<text x="305" y="309" text-anchor="middle" font-size="12" fill="#1f2328"><tspan x="305" dy="-14">Read the text:</tspan><tspan x="305" dy="14">address, ZIP, problem,</tspan><tspan x="305" dy="14">urgency, language</tspan></text>
+<rect x="430" y="278" width="150" height="54" rx="9" fill="#e8eefb" stroke="#3b5bdb" stroke-width="1.6"/>
+<text x="505" y="309" text-anchor="middle" font-size="12" fill="#1f2328"><tspan x="505" dy="-7">Remember customer</tspan><tspan x="505" dy="14">24 h, merge messages</tspan></text>
+<rect x="630" y="278" width="150" height="54" rx="9" fill="#fff4dc" stroke="#b7791f" stroke-width="1.6"/>
+<text x="705" y="309" text-anchor="middle" font-size="12" fill="#1f2328"><tspan x="705" dy="-7">Address found</tspan><tspan x="705" dy="14">(or urgent)?</tspan></text>
+<rect x="830" y="278" width="150" height="54" rx="9" fill="#e8eefb" stroke="#3b5bdb" stroke-width="1.6"/>
+<text x="905" y="309" text-anchor="middle" font-size="12" fill="#1f2328"><tspan x="905" dy="-7">Build the</tspan><tspan x="905" dy="14">job card</tspan></text>
+<rect x="1030" y="232" width="150" height="54" rx="9" fill="#f1e8fb" stroke="#7c3aed" stroke-width="1.6"/>
+<text x="1105" y="263" text-anchor="middle" font-size="12" fill="#1f2328"><tspan x="1105" dy="-7">Slack card</tspan><tspan x="1105" dy="14">Assign / Call back</tspan></text>
+<rect x="1030" y="300" width="150" height="54" rx="9" fill="#f1e8fb" stroke="#7c3aed" stroke-width="1.6"/>
+<text x="1105" y="331" text-anchor="middle" font-size="12" fill="#1f2328"><tspan x="1105" dy="-7">Row in the</tspan><tspan x="1105" dy="14">jobs sheet</tspan></text>
+<rect x="1030" y="368" width="150" height="54" rx="9" fill="#f1e8fb" stroke="#7c3aed" stroke-width="1.6"/>
+<text x="1105" y="399" text-anchor="middle" font-size="12" fill="#1f2328"><tspan x="1105" dy="-7">Confirmation text</tspan><tspan x="1105" dy="14">to the customer</tspan></text>
+<rect x="630" y="368" width="150" height="54" rx="9" fill="#f1e8fb" stroke="#7c3aed" stroke-width="1.6"/>
+<text x="705" y="399" text-anchor="middle" font-size="12" fill="#1f2328"><tspan x="705" dy="-7">Ask for the address</tspan><tspan x="705" dy="14">by text</tspan></text>
+<rect x="430" y="368" width="150" height="54" rx="9" fill="#e8eefb" stroke="#3b5bdb" stroke-width="1.6"/>
+<text x="505" y="399" text-anchor="middle" font-size="12" fill="#1f2328"><tspan x="505" dy="-7">Already has a job:</tspan><tspan x="505" dy="14">no second card</tspan></text>
+<path d="M180 305 L230 305" stroke="#57606a" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+<path d="M380 305 L430 305" stroke="#57606a" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+<path d="M580 305 L630 305" stroke="#57606a" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+<path d="M780 305 L830 305" stroke="#57606a" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+<text x="805" y="299" text-anchor="middle" font-size="11" fill="#57606a">yes</text>
+<path d="M980 305 L1030 259" stroke="#57606a" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+<path d="M980 305 L1030 327" stroke="#57606a" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+<path d="M980 305 L1030 395" stroke="#57606a" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+<path d="M705 332 L705 368" stroke="#57606a" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+<text x="713" y="354" text-anchor="start" font-size="11" fill="#57606a">no</text>
+<path d="M505 332 L505 368" stroke="#57606a" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+<text x="513" y="354" text-anchor="start" font-size="11" fill="#57606a">repeat</text>
+<text x="30" y="478" font-size="15" font-weight="600" fill="#1f2328">3. Error alert - nothing fails silently</text>
+<rect x="30" y="494" width="150" height="54" rx="9" fill="#fde8e8" stroke="#c53030" stroke-width="1.6"/>
+<text x="105" y="525" text-anchor="middle" font-size="12" fill="#1f2328"><tspan x="105" dy="-7">Any failure in</tspan><tspan x="105" dy="14">workflow 1 or 2</tspan></text>
+<rect x="230" y="494" width="150" height="54" rx="9" fill="#e8eefb" stroke="#3b5bdb" stroke-width="1.6"/>
+<text x="305" y="525" text-anchor="middle" font-size="12" fill="#1f2328"><tspan x="305" dy="-7">Build alert: workflow,</tspan><tspan x="305" dy="14">step, error, execution id</tspan></text>
+<rect x="430" y="494" width="150" height="54" rx="9" fill="#f1e8fb" stroke="#7c3aed" stroke-width="1.6"/>
+<text x="505" y="525" text-anchor="middle" font-size="12" fill="#1f2328"><tspan x="505" dy="-7">Log line</tspan><tspan x="505" dy="14">(always written)</tspan></text>
+<rect x="630" y="494" width="150" height="54" rx="9" fill="#f1e8fb" stroke="#7c3aed" stroke-width="1.6"/>
+<text x="705" y="525" text-anchor="middle" font-size="12" fill="#1f2328"><tspan x="705" dy="-7">Slack alert</tspan><tspan x="705" dy="14">(tried second)</tspan></text>
+<path d="M180 521 L230 521" stroke="#57606a" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+<path d="M380 521 L430 521" stroke="#57606a" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+<path d="M580 521 L630 521" stroke="#57606a" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+<text x="30" y="590" font-size="11" fill="#57606a">Legend:</text>
+<rect x="85" y="580" width="14" height="14" rx="3" fill="#e3f4e8" stroke="#2e7d4f" stroke-width="1.4"/>
+<text x="105" y="591" font-size="11" fill="#57606a">trigger</text>
+<rect x="168.4" y="580" width="14" height="14" rx="3" fill="#e8eefb" stroke="#3b5bdb" stroke-width="1.4"/>
+<text x="188.4" y="591" font-size="11" fill="#57606a">Code node</text>
+<rect x="264.20000000000005" y="580" width="14" height="14" rx="3" fill="#fff4dc" stroke="#b7791f" stroke-width="1.4"/>
+<text x="284.20000000000005" y="591" font-size="11" fill="#57606a">decision</text>
+<rect x="353.80000000000007" y="580" width="14" height="14" rx="3" fill="#f1e8fb" stroke="#7c3aed" stroke-width="1.4"/>
+<text x="373.80000000000007" y="591" font-size="11" fill="#57606a">sends something (mock by default)</text>
+<rect x="598.4000000000001" y="580" width="14" height="14" rx="3" fill="#fde8e8" stroke="#c53030" stroke-width="1.4"/>
+<text x="618.4000000000001" y="591" font-size="11" fill="#57606a">alert</text>
+<rect x="669.4000000000001" y="580" width="14" height="14" rx="3" fill="#f1f1f1" stroke="#8a8a8a" stroke-width="1.4"/>
+<text x="689.4000000000001" y="591" font-size="11" fill="#57606a">not a missed call</text>
+</svg>

@@ -1,0 +1,600 @@
+{
+  "id": "hsdMissedCall01",
+  "name": "HSD 1 - Missed call to instant text",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "hsd/missed-call",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "f46417d5-52fa-5743-d848-7b52bcac56a4",
+      "name": "Missed Call Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "9d8870fb-3fba-19a5-c4b2-fac36f75c760"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "<Response></Response>",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/xml"
+              }
+            ]
+          }
+        }
+      },
+      "id": "cca2441b-ce10-e817-71b6-4136053f7a66",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        300
+      ],
+      "notes": "Answers the phone company at once. Everything after this runs in the background.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "8d5293c0-0dfc-1a83-f074-f965cd87e6d9",
+              "name": "businessName",
+              "value": "Summit Home Services",
+              "type": "string"
+            },
+            {
+              "id": "0a1c1ca3-bae6-dd3c-0715-5b0173038a17",
+              "name": "businessTimezone",
+              "value": "America/Chicago",
+              "type": "string"
+            },
+            {
+              "id": "518ea5be-9a0a-2538-9bcf-85d271078f3b",
+              "name": "openHour",
+              "value": 7,
+              "type": "number"
+            },
+            {
+              "id": "8641ae12-42cb-63f4-8762-a0747cf0610f",
+              "name": "closeHour",
+              "value": 19,
+              "type": "number"
+            },
+            {
+              "id": "9356f34f-464c-79a2-f186-788d3435634e",
+              "name": "dedupeHours",
+              "value": 24,
+              "type": "number"
+            },
+            {
+              "id": "1bcff750-7d35-bc3e-18c3-ca9b20381cda",
+              "name": "winterMonths",
+              "value": "11,12,1,2,3",
+              "type": "string"
+            },
+            {
+              "id": "f90aaee6-0a58-63f4-2bad-e4b02e1d375d",
+              "name": "smsMode",
+              "value": "mock",
+              "type": "string"
+            },
+            {
+              "id": "67276482-3c2f-4321-ca2e-77703477ee9e",
+              "name": "mockBaseUrl",
+              "value": "http://127.0.0.1:8099",
+              "type": "string"
+            },
+            {
+              "id": "4465a52d-888e-8419-66dc-c5b8f0f90977",
+              "name": "slackWebhookUrl",
+              "value": "http://127.0.0.1:8099/slack",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8851142d-a56f-d885-ce66-8a165b33fee7",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        440,
+        300
+      ],
+      "notes": "Per-client settings. smsMode: mock or twilio. Slack and mock URLs are set here too.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Shared helpers. tools/build.mjs copies this block into every Code node that says \"//@include shared.js\",\n// because an n8n Code node cannot import local files.\nconst cfg = $('Config').first().json;\n\n// US numbers only. Returns +1XXXXXXXXXX or null. Area code and exchange must start with 2-9.\nfunction toE164(raw) {\n  let d = String(raw ?? '').replace(/\\D/g, '');\n  if (d.length === 11 && d.startsWith('1')) d = d.slice(1);\n  return /^[2-9]\\d{2}[2-9]\\d{6}$/.test(d) ? '+1' + d : null;\n}\n\n// Local weekday / hour / month in the business time zone.\nfunction localParts(date, tz) {\n  const parts = new Intl.DateTimeFormat('en-US', {\n    timeZone: tz, weekday: 'short', hour: 'numeric', hourCycle: 'h23', month: 'numeric',\n  }).formatToParts(date);\n  const get = (t) => parts.find((p) => p.type === t)?.value;\n  return { weekday: get('weekday'), hour: Number(get('hour')), month: Number(get('month')) };\n}\n// Checks the missed-call event. Output route: ok | ignore (call was answered) | invalid (bad data -> alert).\nconst body = $('Missed Call Webhook').first().json.body ?? {};\nconst now = new Date();\n// Twilio's <Dial action> reports the outcome as DialCallStatus; a plain status callback sends CallStatus.\nconst status = String(body.DialCallStatus ?? body.CallStatus ?? '').toLowerCase();\nconst base = { callSid: body.CallSid ?? null, receivedAt: now.toISOString() };\n\nif (!['no-answer', 'busy', 'canceled'].includes(status)) {\n  return [{ json: { ...base, route: 'ignore', reason: `call status \"${status || 'missing'}\" is not a missed call` } }];\n}\nconst from = toE164(body.From);\nif (!from) {\n  return [{ json: { ...base, route: 'invalid', reason: `caller number \"${body.From ?? ''}\" is not a valid US number, nobody was texted` } }];\n}\nconst to = toE164(body.To);\nif (!to) {\n  return [{ json: { ...base, route: 'invalid', reason: `business number \"${body.To ?? ''}\" is not a valid US number` } }];\n}\n\n// Open or closed: the phone system's flag wins; if it is missing, work it out from the Config hours (Mon-Sat).\nfunction readFlag(v) {\n  if (typeof v === 'boolean') return v;\n  const s = String(v ?? '').trim().toLowerCase();\n  if (['true', '1', 'yes', 'open', 'in-hours'].includes(s)) return true;\n  if (['false', '0', 'no', 'closed', 'after-hours'].includes(s)) return false;\n  return null;\n}\nconst flag = readFlag(body.BusinessHours);\nlet open = flag;\nif (open === null) {\n  const l = localParts(now, cfg.businessTimezone);\n  open = l.weekday !== 'Sun' && l.hour >= Number(cfg.openHour) && l.hour < Number(cfg.closeHour);\n}\nreturn [{ json: { ...base, route: 'ok', from, to, afterHours: !open, hoursSource: flag === null ? 'computed from Config' : 'phone system flag' } }];\n"
+      },
+      "id": "6887ea92-e552-016f-8d36-c14d6ffcd9c5",
+      "name": "Validate Call",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "87c07c5a-52b9-9fe5-aee9-547cb8d8163a",
+              "leftValue": "={{ $json.route }}",
+              "rightValue": "ok",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "13a58138-f82e-207c-8b0a-e115bd609a92",
+      "name": "Valid Missed Call?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Same caller again inside the window (Config.dedupeHours) gets no second text.\n// A caller counts as \"texted\" only after the SMS really went out (see Mark Texted), so a failed send is retried on the next call.\nconst cfg = $('Config').first().json;\nconst call = $input.first().json;\nconst store = $getWorkflowStaticData('global');\nstore.callers = store.callers ?? {};\n\nconst now = Date.now();\nconst windowMs = Number(cfg.dedupeHours) * 3600 * 1000;\nfor (const [num, rec] of Object.entries(store.callers)) {\n  if (now - rec.firstCallAt >= windowMs) delete store.callers[num];\n}\n\nconst seen = store.callers[call.from];\nif (seen && seen.texted) {\n  seen.calls += 1;\n  seen.lastCallAt = now;\n  const first = new Date(seen.firstCallAt).toISOString();\n  return [{ json: { ...call, route: 'duplicate', calls: seen.calls, reason: `${call.from} was already texted at ${first} (call number ${seen.calls} in ${cfg.dedupeHours} h), no second text` } }];\n}\nstore.callers[call.from] = { firstCallAt: seen?.firstCallAt ?? now, lastCallAt: now, calls: (seen?.calls ?? 0) + 1, texted: false };\nreturn [{ json: { ...call, route: 'new' } }];\n"
+      },
+      "id": "f93291bf-86ac-ddcc-d3ea-b47678c678e5",
+      "name": "Dedupe Caller",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "fa033171-63cb-dc39-e739-df463de5af18",
+              "leftValue": "={{ $json.route }}",
+              "rightValue": "new",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "df48529e-1717-133f-0226-26561ead0016",
+      "name": "New Caller?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// The instant text. One wording during business hours, one after hours.\nconst cfg = $('Config').first().json;\nconst call = $input.first().json;\nconst name = cfg.businessName;\n\nconst body = call.afterHours\n  ? `${name}: Sorry we missed your call. Our office is closed right now. Reply with your address and the problem, and a technician will call you back first thing in the morning. If it is an emergency (gas smell, flooding, fire), call 911.`\n  : `${name}: Sorry we missed your call. Reply with your address and the problem, and a technician will call you back.`;\n\nreturn [{ json: { ...call, sms: { from: call.to, to: call.from, body, tag: call.afterHours ? 'missed-call-after-hours' : 'missed-call' } } }];\n"
+      },
+      "id": "bd55af0f-b14a-b672-3962-fde9a233bc69",
+      "name": "Build Reply SMS",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a684d040-8f92-97b3-257c-d2c1f08c6dd2",
+              "leftValue": "={{ $('Config').first().json.smsMode }}",
+              "rightValue": "twilio",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "0f3a7526-7b22-7943-6e5d-db1a10628697",
+      "name": "SMS Mode?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1760,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "sms",
+        "operation": "send",
+        "from": "={{ $json.sms.from }}",
+        "to": "={{ $json.sms.to }}",
+        "toWhatsapp": false,
+        "message": "={{ $json.sms.body }}",
+        "options": {}
+      },
+      "id": "8b5b72d0-6ca8-fc14-2d44-926b929c0966",
+      "name": "Send SMS (Twilio)",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [
+        1990,
+        30
+      ],
+      "disabled": true,
+      "notes": "Turned off in the demo (no credentials). To go live: add the client's Twilio credential, turn this on, set smsMode to twilio.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.mockBaseUrl }}/sms",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.sms) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "fd9e09cb-403f-9421-b756-251fa6983bdd",
+      "name": "Send SMS (mock)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1990,
+        210
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "notes": "Demo sender: appends the text to a local log instead of sending it.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Runs only after the SMS step succeeded. From now on the same caller is a duplicate for Config.dedupeHours.\nconst call = $('Dedupe Caller').first().json;\nconst store = $getWorkflowStaticData('global');\nif (store.callers?.[call.from]) store.callers[call.from].texted = true;\nreturn [{ json: { result: 'texted', from: call.from, afterHours: call.afterHours } }];\n"
+      },
+      "id": "517d83a2-9477-8d95-3351-7e5b1c02eb29",
+      "name": "Mark Texted",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2220,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.mockBaseUrl }}/log",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ kind: 'event', line: 'duplicate call: ' + $json.reason }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "ff56fc78-d626-37b6-e624-c4b10858d356",
+      "name": "Log Duplicate Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "1f025e1e-125a-c3e0-7793-25403d573256",
+              "leftValue": "={{ $json.route }}",
+              "rightValue": "invalid",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "77694535-2232-0a7c-9590-42e6b78fd924",
+      "name": "Invalid Input?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "errorType": "errorMessage",
+        "errorMessage": "={{ \"Rejected missed-call event: \" + $json.reason }}"
+      },
+      "id": "0827378c-cdde-ffd8-c044-190c3bc79519",
+      "name": "Reject Invalid Call",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        1320,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.mockBaseUrl }}/log",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ kind: 'event', line: 'ignored: ' + $json.reason }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "245a60e3-67d5-a295-769a-0acef4c71d40",
+      "name": "Log Ignored Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 1. Missed call -> instant text\nThe phone system posts a missed call here. The caller gets a text within seconds. A repeat caller within 24 hours is not texted twice. Bad data raises an alert (error workflow) instead of failing silently.",
+        "width": 640,
+        "height": 170,
+        "color": 7
+      },
+      "id": "18c7b327-df3c-6b84-3a75-bdc6ac840968",
+      "name": "Note 0",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        60
+      ]
+    }
+  ],
+  "connections": {
+    "Missed Call Webhook": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond OK": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Validate Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Call": {
+      "main": [
+        [
+          {
+            "node": "Valid Missed Call?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid Missed Call?": {
+      "main": [
+        [
+          {
+            "node": "Dedupe Caller",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Invalid Input?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dedupe Caller": {
+      "main": [
+        [
+          {
+            "node": "New Caller?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New Caller?": {
+      "main": [
+        [
+          {
+            "node": "Build Reply SMS",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Duplicate Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Reply SMS": {
+      "main": [
+        [
+          {
+            "node": "SMS Mode?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SMS Mode?": {
+      "main": [
+        [
+          {
+            "node": "Send SMS (Twilio)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send SMS (mock)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send SMS (Twilio)": {
+      "main": [
+        [
+          {
+            "node": "Mark Texted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send SMS (mock)": {
+      "main": [
+        [
+          {
+            "node": "Mark Texted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Invalid Input?": {
+      "main": [
+        [
+          {
+            "node": "Reject Invalid Call",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Ignored Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "hsdErrorAlert01"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

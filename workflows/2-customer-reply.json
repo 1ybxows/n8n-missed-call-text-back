@@ -1,0 +1,700 @@
+{
+  "id": "hsdCustomerReply01",
+  "name": "HSD 2 - Customer reply to job card",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "hsd/customer-reply",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "0c4960fe-c1fc-6c10-50a6-b94d812e6445",
+      "name": "Customer Reply Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "86c31264-fca8-9b5e-7748-296bade74d7f"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "<Response></Response>",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/xml"
+              }
+            ]
+          }
+        }
+      },
+      "id": "cca2441b-ce10-e817-71b6-4136053f7a66",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        300
+      ],
+      "notes": "Answers the phone company at once. Everything after this runs in the background.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "8d5293c0-0dfc-1a83-f074-f965cd87e6d9",
+              "name": "businessName",
+              "value": "Summit Home Services",
+              "type": "string"
+            },
+            {
+              "id": "0a1c1ca3-bae6-dd3c-0715-5b0173038a17",
+              "name": "businessTimezone",
+              "value": "America/Chicago",
+              "type": "string"
+            },
+            {
+              "id": "518ea5be-9a0a-2538-9bcf-85d271078f3b",
+              "name": "openHour",
+              "value": 7,
+              "type": "number"
+            },
+            {
+              "id": "8641ae12-42cb-63f4-8762-a0747cf0610f",
+              "name": "closeHour",
+              "value": 19,
+              "type": "number"
+            },
+            {
+              "id": "9356f34f-464c-79a2-f186-788d3435634e",
+              "name": "dedupeHours",
+              "value": 24,
+              "type": "number"
+            },
+            {
+              "id": "1bcff750-7d35-bc3e-18c3-ca9b20381cda",
+              "name": "winterMonths",
+              "value": "11,12,1,2,3",
+              "type": "string"
+            },
+            {
+              "id": "f90aaee6-0a58-63f4-2bad-e4b02e1d375d",
+              "name": "smsMode",
+              "value": "mock",
+              "type": "string"
+            },
+            {
+              "id": "67276482-3c2f-4321-ca2e-77703477ee9e",
+              "name": "mockBaseUrl",
+              "value": "http://127.0.0.1:8099",
+              "type": "string"
+            },
+            {
+              "id": "4465a52d-888e-8419-66dc-c5b8f0f90977",
+              "name": "slackWebhookUrl",
+              "value": "http://127.0.0.1:8099/slack",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8851142d-a56f-d885-ce66-8a165b33fee7",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        440,
+        300
+      ],
+      "notes": "Per-client settings. smsMode: mock or twilio. Slack and mock URLs are set here too.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Shared helpers. tools/build.mjs copies this block into every Code node that says \"//@include shared.js\",\n// because an n8n Code node cannot import local files.\nconst cfg = $('Config').first().json;\n\n// US numbers only. Returns +1XXXXXXXXXX or null. Area code and exchange must start with 2-9.\nfunction toE164(raw) {\n  let d = String(raw ?? '').replace(/\\D/g, '');\n  if (d.length === 11 && d.startsWith('1')) d = d.slice(1);\n  return /^[2-9]\\d{2}[2-9]\\d{6}$/.test(d) ? '+1' + d : null;\n}\n\n// Local weekday / hour / month in the business time zone.\nfunction localParts(date, tz) {\n  const parts = new Intl.DateTimeFormat('en-US', {\n    timeZone: tz, weekday: 'short', hour: 'numeric', hourCycle: 'h23', month: 'numeric',\n  }).formatToParts(date);\n  const get = (t) => parts.find((p) => p.type === t)?.value;\n  return { weekday: get('weekday'), hour: Number(get('hour')), month: Number(get('month')) };\n}\n// Reads the customer's text with plain rules (no AI): address, ZIP, problem type, urgency, language.\nconst hook = $('Customer Reply Webhook').first().json.body ?? {};\nconst now = new Date();\nconst from = toE164(hook.From);\nconst to = toE164(hook.To);\nconst text = String(hook.Body ?? '').replace(/\\s+/g, ' ').trim();\nconst base = { receivedAt: now.toISOString(), messageSid: hook.MessageSid ?? null };\nif (!from || !to) {\n  const bad = !from ? hook.From : hook.To;\n  return [{ json: { ...base, route: 'invalid', reason: `${!from ? 'customer' : 'business'} number \"${bad ?? ''}\" is not a valid US number, message not processed` } }];\n}\n\n// lower case, accents removed: \"calefacción\" and \"calefaccion\" hit the same rule\nconst t = text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');\n\n// Language: English unless two different Spanish words show up.\nconst esWords = new Set(t.match(/\\b(hola|necesito|por favor|gracias|calle|avenida|vivo|estoy|tengo|tiene|hay|sin|funciona|fuga|agua|calefaccion|aire|acondicionado|puerta|garaje|casa|ayuda|urgente|huele|luz)\\b/g) ?? []);\nconst language = esWords.size >= 2 ? 'es' : 'en';\n\n// Street address: house number + street name + street word (St, Ave, Rd ...), optional unit.\nconst SUFFIX = 'street|st|avenue|ave|boulevard|blvd|road|rd|drive|dr|lane|ln|court|ct|way|place|pl|circle|cir|parkway|pkwy|trail|trl|terrace|ter|highway|hwy';\nconst NOT_A_STREET_NAME = new Set(['in', 'the', 'of', 'my', 'and', 'at', 'is', 'are', 'to', 'a', 'on', 'for', 'we', 'i']);\nconst streetRe = new RegExp(`\\\\b(\\\\d{1,6})\\\\s+((?:[A-Za-z0-9.'-]+\\\\s+){0,3}?[A-Za-z0-9.'-]+)\\\\s+(?:${SUFFIX})\\\\b\\\\.?(?:,?\\\\s+(?:apt|unit|suite|ste|#)\\\\.?\\\\s*[A-Za-z0-9-]+)?`, 'gi');\nlet address = null;\nlet span = null;\nfor (const m of text.matchAll(streetRe)) {\n  if (m[2].toLowerCase().split(/\\s+/).some((w) => NOT_A_STREET_NAME.has(w))) continue;\n  address = m[0].replace(/[.,]+$/, '');\n  span = [m.index, m.index + m[0].length];\n  break;\n}\n\n// City, state, ZIP right after the street (\"Dallas TX 75201\"); otherwise the last 5-digit number outside the street.\nlet city = null;\nlet state = null;\nlet zip = null;\nconst csz = /,?\\s*([A-Z][A-Za-z.' -]{1,24}?),?\\s+([A-Z]{2})\\b,?\\s*(\\d{5})(?:-\\d{4})?/.exec(span ? text.slice(span[1]) : text);\nif (csz) {\n  city = csz[1].trim();\n  state = csz[2];\n  zip = csz[3];\n} else {\n  const zips = [...text.matchAll(/\\b(\\d{5})(?:-\\d{4})?\\b/g)].filter((m) => !(span && m.index >= span[0] && m.index < span[1]));\n  if (zips.length) zip = zips[zips.length - 1][1];\n}\n\n// Problem type. A gas smell is an urgency flag, not a \"leak\" job, so those words are removed before the type rules run.\nconst GAS = \"\\\\b(smell(s|ed|ing)? (of |like )?(natural )?gas|gas (smell|odor|leak|leaking)|(natural )?gas is leaking|rotten eggs?|huele a gas|olor a gas|fuga de gas)\\\\b\";\nconst hasGas = new RegExp(GAS).test(t);\nconst tNoGas = t.replace(new RegExp(GAS, 'g'), ' ');\nconst TYPES = [\n  ['no heat', /\\bno (heat|heating|hot air)\\b|\\bnot (heating|blowing hot)|\\bheat(er|ing)? (is |has |isn'?t |won'?t |stopped |went )?(out|off|not working|broken|down|dead|quit)\\b|\\bfurnace\\b|\\bboiler\\b|(?<!water )\\bheater\\b|calefaccion|no calienta|\\b(house|home) is (freezing|cold)\\b/],\n  ['no cool', /\\bno (cool|cold air|cooling|ac|a\\/c)\\b|\\b(ac|a\\/c|air condition(er|ing)?)\\b|\\bnot (cooling|blowing cold)|\\bwarm air\\b|\\bblowing warm\\b|aire acondicionado|no enfria|sin aire|\\b(house|home) is (hot|warm)\\b/],\n  ['garage door', /\\bgarage\\b|garaje|\\bopener\\b|\\boverhead door\\b/],\n  ['electrical', /\\belectric(al|ian)?\\b|\\boutlets?\\b|\\bbreakers?\\b|\\bcircuit\\b|\\bno power\\b|\\bpower (is |went )?out\\b|\\bwiring\\b|\\bfuse\\b|\\bsparks?\\b|\\bsparking\\b|\\bpanel\\b|corto circuito|apagon|sin luz/],\n  ['leak', /\\bleak(s|ing|ed|y)?\\b|\\bdrip(s|ping)?\\b|\\bflood(ed|ing|s)?\\b|\\bburst\\b|\\bpipes?\\b|\\bfaucet\\b|\\bsink\\b|\\btoilet\\b|\\bdrain\\b|\\bclog(ged)?\\b|\\bsewer\\b|\\bwater heater\\b|\\bwater (is )?(everywhere|pouring|coming|on the floor)\\b|fuga de agua|gotea|inundacion|tuberia|plomer/],\n];\nconst matched = TYPES.filter(([, re]) => re.test(tNoGas)).map(([name]) => name);\nconst problemType = matched[0] ?? 'other';\n\n// Urgency: gas smell, carbon monoxide, flooding, smoke or fire, and \"no heat\" in the winter months from Config.\nconst winterMonths = String(cfg.winterMonths).split(',').map((s) => Number(s.trim()));\nconst winter = winterMonths.includes(localParts(now, cfg.businessTimezone).month);\nconst urgencyReasons = [];\nif (hasGas) urgencyReasons.push('gas smell');\nif (/carbon monoxide|\\bco (alarm|detector)\\b|monoxido/.test(t)) urgencyReasons.push('carbon monoxide');\nif (/\\bflood(ed|ing|s)?\\b|\\bburst (pipe|pipes)\\b|\\bpipe (burst|broke|is broken)\\b|\\bwater (is )?(everywhere|pouring|gushing|rushing)\\b|inundacion|se inundo|tuberia rota/.test(t)) urgencyReasons.push('flooding');\nif (/\\bsmoke\\b|\\bon fire\\b|\\bfire\\b|\\bsparks?\\b|\\bsparking\\b|burning smell|smells? (like )?(burning|smoke)|\\bhumo\\b|chispas|huele a quemado/.test(t)) urgencyReasons.push('smoke, fire or sparks');\nif (problemType === 'no heat' && winter) urgencyReasons.push('no heat in winter');\n\nreturn [{ json: {\n  ...base, route: 'ok', from, to, text: text.slice(0, 400), language,\n  address, city, state, zip, problemType, alsoMentioned: matched.slice(1),\n  urgent: urgencyReasons.length > 0, urgencyReasons, missing: address ? [] : ['address'],\n} }];\n"
+      },
+      "id": "4b685311-e1d0-03b0-f8cc-d4cb7e4810f0",
+      "name": "Parse Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "0ccf1292-5e89-28fc-7e03-d2489515e615",
+              "leftValue": "={{ $json.route }}",
+              "rightValue": "ok",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d8e6632d-35bd-fdef-83e7-97c11a974636",
+      "name": "Reply OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "errorType": "errorMessage",
+        "errorMessage": "={{ \"Rejected customer reply: \" + $json.reason }}"
+      },
+      "id": "070ebc65-5190-052f-d366-1f3d7c31b45e",
+      "name": "Reject Unreadable Reply",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Remembers each customer for Config.dedupeHours. Decides: card (make a job card), ask_info (ask for the address),\n// or duplicate (this customer already has a job card, so no second one).\nconst cfg = $('Config').first().json;\nconst msg = $input.first().json;\nconst store = $getWorkflowStaticData('global');\nstore.customers = store.customers ?? {};\nstore.seq = store.seq ?? 0;\n\nconst now = Date.now();\nconst windowMs = Number(cfg.dedupeHours) * 3600 * 1000;\nfor (const [num, rec] of Object.entries(store.customers)) {\n  if (now - rec.firstAt >= windowMs) delete store.customers[num];\n}\nconst prev = store.customers[msg.from];\n\n// Fill the gaps from earlier messages inside the window; new information wins.\nconst messages = [...(prev?.messages ?? []), msg.text].slice(-5);\nconst merged = {\n  address: msg.address ?? prev?.address ?? null,\n  city: msg.city ?? prev?.city ?? null,\n  state: msg.state ?? prev?.state ?? null,\n  zip: msg.zip ?? prev?.zip ?? null,\n  problemType: msg.problemType !== 'other' ? msg.problemType : (prev?.problemType ?? 'other'),\n  language: msg.language === 'es' ? 'es' : (prev?.language ?? msg.language),\n  urgencyReasons: [...new Set([...(prev?.urgencyReasons ?? []), ...msg.urgencyReasons])],\n};\nmerged.urgent = merged.urgencyReasons.length > 0;\n\nlet route;\nif (prev?.jobId && !(prev.addressMissing && merged.address)) route = 'duplicate';\nelse if (merged.address) route = 'card';\nelse if (merged.urgent || (prev?.asks ?? 0) >= 2) route = 'card'; // urgent, or asked twice already: a person takes over\nelse route = 'ask_info';\n\nconst isUpdate = route === 'card' && Boolean(prev?.jobId);\nlet jobId = prev?.jobId ?? null;\nif (route === 'card' && !jobId) {\n  store.seq += 1;\n  const day = new Intl.DateTimeFormat('en-CA', { timeZone: cfg.businessTimezone }).format(new Date()).replace(/-/g, '');\n  jobId = `J-${day}-${String(store.seq).padStart(3, '0')}`;\n}\n\nconst rec = {\n  ...(prev ?? {}), ...merged, messages, jobId,\n  firstAt: prev?.firstAt ?? now, lastAt: now, replies: (prev?.replies ?? 0) + 1,\n  asks: (prev?.asks ?? 0) + (route === 'ask_info' ? 1 : 0),\n  cardAt: route === 'card' ? now : prev?.cardAt,\n  addressMissing: route === 'card' ? !merged.address : prev?.addressMissing,\n};\nstore.customers[msg.from] = rec;\n\nconst out = { ...msg, ...merged, message: messages.join(' | '), route, isUpdate, jobId, addressMissing: !merged.address, asks: rec.asks, replies: rec.replies };\nif (route === 'duplicate') out.reason = `${msg.from} already has job ${prev.jobId} (created ${new Date(prev.cardAt).toISOString()}), no second job card`;\nreturn [{ json: out }];\n"
+      },
+      "id": "c67b227b-9331-af98-2eaa-d361aec0afa0",
+      "name": "Dedupe & Merge",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "8d380359-0630-8b2b-c521-3f76a1334b43",
+              "leftValue": "={{ $json.route }}",
+              "rightValue": "duplicate",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ad117ed0-2c16-264f-93c9-3c88c6e53135",
+      "name": "Already Has Job?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.mockBaseUrl }}/log",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ kind: 'event', line: 'duplicate reply: ' + $json.reason }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "e220cdf2-34af-3d70-a4e7-836e8de46232",
+      "name": "Log Duplicate Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "78a28349-5202-9db7-719e-5bd19b201c81",
+              "leftValue": "={{ $json.route }}",
+              "rightValue": "card",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5f73d25b-b447-b9b3-359a-a5618ce8e9ef",
+      "name": "Make Job Card?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1540,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Builds the job card: the Slack message (Block Kit, with Assign and Call back buttons) and the row for the jobs sheet.\nconst m = $input.first().json;\nconst LABEL = { 'no heat': 'No heat', 'no cool': 'No cooling (A/C)', 'garage door': 'Garage door', electrical: 'Electrical', leak: 'Leak / plumbing', other: 'Other / not sure' };\nconst problem = LABEL[m.problemType] ?? 'Other / not sure';\nconst place = [m.address, m.city, [m.state, m.zip].filter(Boolean).join(' ')].filter(Boolean).join(', ');\nconst addressLine = m.address ? place : (m.zip ? `address missing (ZIP ${m.zip})` : 'address missing');\nconst tag = m.urgent ? '🚨 URGENT' : (m.isUpdate ? '🔄 UPDATE' : '🆕 New job');\nconst reasons = m.urgencyReasons.join(', ');\n// Urgent cards lead with the reason (\"Gas smell\"), not the job type; the type follows when it adds information.\nconst cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);\nconst what = m.urgent ? cap(reasons) + (m.problemType !== 'other' && !/no heat/.test(reasons) ? ` - ${problem}` : '') : problem;\n\nconst slack = {\n  text: `${tag}: ${what} | ${addressLine} | ${m.from}`,\n  blocks: [\n    { type: 'header', text: { type: 'plain_text', text: `${tag} - ${what}`, emoji: true } },\n    { type: 'section', fields: [\n      { type: 'mrkdwn', text: `*Customer*\\n${m.from}` },\n      { type: 'mrkdwn', text: `*Job*\\n${m.jobId}` },\n      { type: 'mrkdwn', text: `*Address*\\n${addressLine}` },\n      { type: 'mrkdwn', text: `*ZIP*\\n${m.zip ?? 'not given'}` },\n    ] },\n    ...(m.urgent ? [{ type: 'section', text: { type: 'mrkdwn', text: `*Why urgent:* ${reasons}. Call this customer first.` } }] : []),\n    { type: 'section', text: { type: 'mrkdwn', text: `> ${m.message.slice(0, 1500)}` } },\n    { type: 'context', elements: [{ type: 'mrkdwn', text: `Language: ${m.language === 'es' ? 'Spanish' : 'English'} | Received ${m.receivedAt}` }] },\n    { type: 'actions', block_id: `job_${m.jobId}`, elements: [\n      { type: 'button', text: { type: 'plain_text', text: 'Assign' }, style: 'primary', action_id: 'assign_job', value: m.jobId },\n      { type: 'button', text: { type: 'plain_text', text: 'Call back' }, ...(m.urgent ? { style: 'danger' } : {}), action_id: 'call_back', value: m.from },\n    ] },\n  ],\n};\n\nconst sheetRow = {\n  job_id: m.jobId, created_at: m.receivedAt, status: m.isUpdate ? 'Updated' : 'New', priority: m.urgent ? 'URGENT' : 'Normal',\n  phone: m.from, address: m.address ? place : '', zip: m.zip ?? '', problem_type: m.problemType,\n  urgency: reasons, language: m.language, message: m.message,\n};\nreturn [{ json: { ...m, slack, sheetRow } }];\n"
+      },
+      "id": "b8ede031-b6af-f76d-ab07-0d7975df8381",
+      "name": "Build Job Card",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.mockBaseUrl }}/sheet",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ row: $json.sheetRow }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "b7a661e7-84c8-faea-ab90-82db1f07b3d1",
+      "name": "Add Row (mock CSV)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        200
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "notes": "Demo jobs sheet: a CSV file. Same columns as the Google Sheets node.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Jobs"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "job_id": "={{ $('Build Job Card').first().json.sheetRow.job_id }}",
+            "created_at": "={{ $('Build Job Card').first().json.sheetRow.created_at }}",
+            "status": "={{ $('Build Job Card').first().json.sheetRow.status }}",
+            "priority": "={{ $('Build Job Card').first().json.sheetRow.priority }}",
+            "phone": "={{ $('Build Job Card').first().json.sheetRow.phone }}",
+            "address": "={{ $('Build Job Card').first().json.sheetRow.address }}",
+            "zip": "={{ $('Build Job Card').first().json.sheetRow.zip }}",
+            "problem_type": "={{ $('Build Job Card').first().json.sheetRow.problem_type }}",
+            "urgency": "={{ $('Build Job Card').first().json.sheetRow.urgency }}",
+            "language": "={{ $('Build Job Card').first().json.sheetRow.language }}",
+            "message": "={{ $('Build Job Card').first().json.sheetRow.message }}"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "44d803fa-3479-3bae-e6fb-4b8f2579e3e4",
+      "name": "Add Row (Google Sheets)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2200,
+        200
+      ],
+      "disabled": true,
+      "notes": "Turned off in the demo (no credentials). To go live: add the client's Google credential and pick the sheet.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.slackWebhookUrl }}",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Build Job Card').first().json.slack) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "615f006d-5688-d02d-4594-4349e078ce19",
+      "name": "Post to Slack",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2420,
+        200
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "notes": "Slack incoming webhook. Demo default is a local mock; put the client's real URL in Config.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// The texts back to the customer: ask for the address, or confirm the job (with safety words when it is urgent).\nconst cfg = $('Config').first().json;\nconst m = $('Dedupe & Merge').first().json;\nconst name = cfg.businessName;\nconst es = m.language === 'es';\nconst reasons = m.urgencyReasons;\nlet body;\n\nif (m.route === 'ask_info') {\n  body = es\n    ? `${name}: ¡Gracias! Para enviar a un técnico necesitamos la dirección completa (calle y número) y el código postal. Por favor responda con ellos.`\n    : (m.asks > 1\n      ? `${name}: Sorry, we still need the street address to send a technician. Please reply with it, for example \"123 Main St, Dallas TX 75201\".`\n      : `${name}: Thanks! To send a technician we need your street address and ZIP code. Please reply with them.`);\n} else {\n  const job = m.jobId;\n  const safety = [];\n  if (reasons.includes('gas smell') || reasons.includes('carbon monoxide')) {\n    safety.push(es\n      ? 'Si huele a gas o suena la alarma de monóxido de carbono, salga de la casa ahora y llame al 911 o a la línea de emergencia de la compañía de gas. No use interruptores ni teléfonos dentro.'\n      : \"If you smell gas or a carbon monoxide alarm is sounding, leave the building now and call 911 or your gas company's emergency line. Do not use light switches or phones inside.\");\n  }\n  if (reasons.includes('flooding')) {\n    safety.push(es ? 'Si puede hacerlo con seguridad, cierre la llave principal del agua. Si hay peligro, llame al 911.' : 'If it is safe, shut off the main water valve. If anyone is in danger, call 911.');\n  }\n  if (reasons.includes('smoke, fire or sparks')) {\n    safety.push(es ? 'Si hay humo o fuego, saque a todos de la casa y llame al 911.' : 'If there is smoke or fire, get everyone out and call 911.');\n  }\n  const askAddress = m.addressMissing ? (es ? ' Por favor responda con su dirección y código postal.' : ' Please reply with your street address and ZIP code.') : '';\n  let lead;\n  if (m.isUpdate) lead = es ? `Gracias, recibimos la dirección (trabajo ${job}). Un técnico le llamará pronto.` : `Thanks, we got the address (job ${job}). A technician will call you back shortly.`;\n  else if (m.urgent) lead = es ? `Marcamos su solicitud como URGENTE (trabajo ${job}) y estamos avisando a un técnico ahora.` : `We marked your request URGENT (job ${job}) and a technician is being alerted now.`;\n  else lead = es ? `Gracias, recibimos su solicitud (trabajo ${job}). Un técnico le llamará pronto.` : `Thanks, we have your request (job ${job}). A technician will call you back shortly.`;\n  body = `${name}: ${[lead + askAddress, ...safety].join(' ')}`;\n}\n\nreturn [{ json: { ...m, sms: { from: m.to, to: m.from, body, tag: m.route === 'ask_info' ? 'ask-address' : 'confirmation' } } }];\n"
+      },
+      "id": "eb3b2346-8955-4445-f75b-a42421db64f8",
+      "name": "Build SMS",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a684d040-8f92-97b3-257c-d2c1f08c6dd2",
+              "leftValue": "={{ $('Config').first().json.smsMode }}",
+              "rightValue": "twilio",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "0f3a7526-7b22-7943-6e5d-db1a10628697",
+      "name": "SMS Mode?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2860,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "sms",
+        "operation": "send",
+        "from": "={{ $json.sms.from }}",
+        "to": "={{ $json.sms.to }}",
+        "toWhatsapp": false,
+        "message": "={{ $json.sms.body }}",
+        "options": {}
+      },
+      "id": "8b5b72d0-6ca8-fc14-2d44-926b929c0966",
+      "name": "Send SMS (Twilio)",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [
+        3090,
+        210
+      ],
+      "disabled": true,
+      "notes": "Turned off in the demo (no credentials). To go live: add the client's Twilio credential, turn this on, set smsMode to twilio.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.mockBaseUrl }}/sms",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.sms) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "fd9e09cb-403f-9421-b756-251fa6983bdd",
+      "name": "Send SMS (mock)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3090,
+        390
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "notes": "Demo sender: appends the text to a local log instead of sending it.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "content": "## 2. Customer reply -> job card\nThe customer's text comes in. Plain rules read the address, ZIP and problem, flag urgent jobs and remember the customer for 24 hours. A job card goes to Slack and to the jobs sheet. A missing address gets a polite question instead of a card (unless it is urgent).",
+        "width": 700,
+        "height": 170,
+        "color": 7
+      },
+      "id": "18c7b327-df3c-6b84-3a75-bdc6ac840968",
+      "name": "Note 0",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        60
+      ]
+    }
+  ],
+  "connections": {
+    "Customer Reply Webhook": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond OK": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Parse Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Reply": {
+      "main": [
+        [
+          {
+            "node": "Reply OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply OK?": {
+      "main": [
+        [
+          {
+            "node": "Dedupe & Merge",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reject Unreadable Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dedupe & Merge": {
+      "main": [
+        [
+          {
+            "node": "Already Has Job?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Already Has Job?": {
+      "main": [
+        [
+          {
+            "node": "Log Duplicate Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Make Job Card?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Make Job Card?": {
+      "main": [
+        [
+          {
+            "node": "Build Job Card",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build SMS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Job Card": {
+      "main": [
+        [
+          {
+            "node": "Add Row (mock CSV)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Row (mock CSV)": {
+      "main": [
+        [
+          {
+            "node": "Add Row (Google Sheets)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Row (Google Sheets)": {
+      "main": [
+        [
+          {
+            "node": "Post to Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post to Slack": {
+      "main": [
+        [
+          {
+            "node": "Build SMS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build SMS": {
+      "main": [
+        [
+          {
+            "node": "SMS Mode?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SMS Mode?": {
+      "main": [
+        [
+          {
+            "node": "Send SMS (Twilio)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send SMS (mock)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "hsdErrorAlert01"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}
